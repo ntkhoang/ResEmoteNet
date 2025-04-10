@@ -14,7 +14,7 @@ device = torch.device("mps" if torch.backends.mps.is_available() else "cpu")
 emotions = ['happy', 'surprise', 'sad', 'anger', 'disgust', 'fear', 'neutral']
 
 model = ResEmoteNet().to(device)
-checkpoint = torch.load('best_model.pth', weights_only=True)
+checkpoint = torch.load('fer2013_model.pth', weights_only=True)
 model.load_state_dict(checkpoint['model_state_dict'])
 model.eval()
 
@@ -36,11 +36,21 @@ video_capture = cv2.VideoCapture(0)
 
 # Settings for text
 font = cv2.FONT_HERSHEY_SIMPLEX
-font_scale = 1.2
+font_scale = 0.6
 font_color = (0, 255, 0)  # This is BGR color
-thickness = 3
+thickness = 1
 line_type = cv2.LINE_AA
 
+# Color mapping for different emotions
+emotion_colors = {
+    'happy': (0, 255, 0),     # Green
+    'surprise': (0, 255, 255), # Yellow
+    'sad': (255, 0, 0),       # Blue
+    'anger': (0, 0, 255),     # Red
+    'disgust': (255, 0, 255),  # Purple
+    'fear': (128, 0, 128),    # Dark purple
+    'neutral': (255, 255, 255) # White
+}
 
 max_emotion = ''
 
@@ -65,21 +75,39 @@ def get_max_emotion(x, y, w, h, video_frame):
 
 
 def print_max_emotion(x, y, video_frame, max_emotion):
-    org = (x, y - 15)
-    cv2.putText(video_frame, max_emotion, org, font, font_scale, font_color, thickness, line_type)
+    org = (x, y - 10)
+    emotion_color = emotion_colors.get(max_emotion, (0, 255, 0))
+    cv2.putText(video_frame, max_emotion, org, font, font_scale, emotion_color, thickness, line_type)
     
 def print_all_emotion(x, y, w, h, video_frame):
     crop_img = video_frame[y : y + h, x : x + w]
     pil_crop_img = Image.fromarray(crop_img)
     rounded_scores = detect_emotion(pil_crop_img)
-    org = (x + w + 10, y - 20)
-    for index, value in enumerate(emotions):
-        emotion_str = (f'{value}: {rounded_scores[index]:.2f}')
-        y = org[1] + 40
-        org = (org[0], y)
-        cv2.putText(video_frame, emotion_str, org, font, font_scale, font_color, thickness, line_type)
     
+    # Position text on the right side of the face
+    org_x = x + w + 5
+    org_y = y
     
+    for index, emotion in enumerate(emotions):
+        score = rounded_scores[index]
+        emotion_str = f'{emotion}: {score:.2f}'
+        
+        # Color higher scores more vividly (transparency effect)
+        color_intensity = int(min(score * 255, 255))
+        emotion_base_color = emotion_colors.get(emotion, (0, 255, 0))
+        
+        # Draw the emotion text
+        cv2.putText(
+            video_frame, 
+            emotion_str, 
+            (org_x, org_y + index * 20),
+            font, 
+            font_scale, 
+            emotion_base_color,
+            thickness, 
+            line_type
+        )
+
 # Identify Face in Video Stream
 def detect_bounding_box(video_frame, counter):
     global max_emotion
